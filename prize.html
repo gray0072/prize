@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Морской бой: Координаты А-Д</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #eef2f3;
+            margin-top: 40px;
+        }
+
+        h1 { color: #2c3e50; margin-bottom: 10px; }
+        #status { margin-bottom: 20px; font-size: 1.1em; color: #34495e; font-weight: bold; }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(5, 70px);
+            grid-template-rows: repeat(5, 70px);
+            gap: 8px;
+            background: #bdc3c7;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .cell {
+            width: 70px;
+            height: 70px;
+            background-color: #3498db;
+            border: none;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.9);
+            transition: all 0.2s;
+            outline: none;
+            user-select: none;
+        }
+
+        .cell:hover { background-color: #2980b9; }
+        .cell:focus {
+            box-shadow: 0 0 0 4px #e74c3c;
+            z-index: 10;
+        }
+
+        .cell.selected { background-color: #f1c40f; color: #2c3e50; border: 2px solid #f39c12; }
+        .cell.revealed { background-color: #ecf0f1; color: #bdc3c7; cursor: default; }
+        .cell.miss { color: #e74c3c; font-size: 32px; }
+        .cell.win { background-color: #2ecc71; color: white; font-size: 32px; box-shadow: inset 0 0 15px rgba(0,0,0,0.2); }
+
+        .controls { margin-top: 30px; }
+        button {
+            padding: 12px 30px;
+            font-size: 18px;
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #219150; }
+        button:disabled { background-color: #95a5a6; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <h1>Морской Бой</h1>
+    <div id="status">Кликните по клетке, чтобы спрятать приз</div>
+    
+    <div id="grid"></div>
+
+    <div class="controls">
+        <button id="startBtn">Старт игры</button>
+    </div>
+
+    <script>
+        const size = 5;
+        const letters = ['А', 'Б', 'В', 'Г', 'Д'];
+        const gridElement = document.getElementById('grid');
+        const startBtn = document.getElementById('startBtn');
+        const statusText = document.getElementById('status');
+        
+        let prizeIndex = null;
+        let isGameStarted = false;
+        let cells = [];
+
+        function createGrid() {
+            for (let i = 0; i < size * size; i++) {
+                const row = Math.floor(i / size);
+                const col = i % size;
+                const coord = letters[row] + letters[col]; // Формируем текст типа АА, АБ...
+
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.tabIndex = 0;
+                cell.dataset.index = i;
+                cell.dataset.coord = coord;
+                cell.textContent = coord; // Сразу выводим координаты
+                
+                cell.addEventListener('click', () => handleAction(i));
+                cell.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') handleAction(i);
+                    handleNavigation(e, i);
+                });
+
+                gridElement.appendChild(cell);
+                cells.push(cell);
+            }
+            cells[0].focus();
+        }
+
+        function handleAction(index) {
+            if (!isGameStarted) {
+                cells.forEach(c => {
+                    c.classList.remove('selected');
+                    c.textContent = c.dataset.coord;
+                });
+                cells[index].classList.add('selected');
+                cells[index].textContent = "🎁"; // Показываем приз на этапе выбора
+                prizeIndex = index;
+            } else {
+                revealCell(index);
+            }
+        }
+
+        function handleNavigation(e, index) {
+            let nextIndex = index;
+            if (e.key === 'ArrowRight') nextIndex = (index + 1) % 25;
+            if (e.key === 'ArrowLeft') nextIndex = (index - 1 + 25) % 25;
+            if (e.key === 'ArrowDown') nextIndex = (index + 5) % 25;
+            if (e.key === 'ArrowUp') nextIndex = (index - 5 + 25) % 25;
+            
+            if (nextIndex !== index) {
+                cells[nextIndex].focus();
+                e.preventDefault();
+            }
+        }
+
+        function revealCell(index) {
+            const cell = cells[index];
+            if (cell.classList.contains('revealed')) return;
+
+            cell.classList.add('revealed');
+            
+            if (index === prizeIndex) {
+                cell.classList.add('win');
+                cell.textContent = '⭐';
+                statusText.textContent = 'Вы нашли приз! Поздравляем!';
+                playSound(true);
+                isGameStarted = false; // Завершаем игру
+            } else {
+                cell.classList.add('miss');
+                cell.textContent = '✕';
+                statusText.textContent = 'Мимо! Ищите дальше...';
+                playSound(false);
+            }
+        }
+
+        startBtn.addEventListener('click', () => {
+            if (prizeIndex === null) {
+                alert('Сначала выберите место для приза!');
+                return;
+            }
+            isGameStarted = true;
+            startBtn.disabled = true;
+            statusText.textContent = 'Игра началась! Координаты перед вами.';
+            
+            // Скрываем приз, возвращаем всем клеткам их буквенные координаты
+            cells.forEach(c => {
+                c.classList.remove('selected');
+                c.textContent = c.dataset.coord;
+            });
+            cells[0].focus();
+        });
+
+        function playSound(isWin) {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            const now = ctx.currentTime;
+            if (isWin) {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now); // A4
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.2); // A5
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start();
+                osc.stop(now + 0.5);
+            } else {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(110, now); // Низкий звук
+                osc.frequency.linearRampToValueAtTime(40, now + 0.3);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start();
+                osc.stop(now + 0.3);
+            }
+        }
+
+        createGrid();
+    </script>
+</body>
+</html>
